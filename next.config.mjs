@@ -9,15 +9,16 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  // Configuración para evitar problemas de SSR con window
+  // Configuración para evitar problemas de SSR
   experimental: {
-    // Deshabilitar prerendering estático para páginas que usan window
     workerThreads: false,
     cpus: 1,
   },
   // Configurar para renderizado dinámico
   trailingSlash: false,
   generateEtags: false,
+  // Configuración específica para client components
+  output: 'standalone',
 }
 
 export default nextConfig

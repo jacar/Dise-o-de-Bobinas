@@ -47,7 +47,6 @@ import {
 
 // Configuración para evitar prerendering estático
 export const dynamic = 'force-dynamic'
-export const revalidate = 0
 
 interface BobinaParams {
   diametro: number
