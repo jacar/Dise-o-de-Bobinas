@@ -1,6 +1,7 @@
 "use client"
 import type React from "react"
 import { useState, useRef, useCallback, useMemo } from "react"
+import { useWindowSize, useIsMobile, useIsTablet, useIsLaptop, useIsDesktop } from "@/hooks/use-window-size"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -43,6 +44,10 @@ import {
   Home,
   Download,
 } from "lucide-react"
+
+// Configuración para evitar prerendering estático
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
 interface BobinaParams {
   diametro: number
@@ -117,6 +122,13 @@ interface AppSettings {
 }
 
 export default function BobinaDesigner() {
+  // Hooks para responsive design
+  const { width: windowWidth, height: windowHeight } = useWindowSize()
+  const isMobile = useIsMobile()
+  const isTablet = useIsTablet()
+  const isLaptop = useIsLaptop()
+  const isDesktop = useIsDesktop()
+
   // Estados principales
   const [params, setParams] = useState<BobinaParams>({
     diametro: 100,
@@ -762,30 +774,25 @@ Desarrollador: Armando Ovalle J
 
   // Cálculos optimizados - Responsive mejorado
   const calculations = useMemo(() => {
-    const isMobile = window.innerWidth < 768
-    const isTablet = window.innerWidth >= 768 && window.innerWidth < 1024
-    const isLaptop = window.innerWidth >= 1024 && window.innerWidth < 1440
-    const isDesktop = window.innerWidth >= 1440
-
     let svgWidth: number
     let svgHeight: number
 
     if (isMobile) {
       // Móvil: Canvas más pequeño pero usable
-      svgWidth = Math.min(window.innerWidth - 20, 400)
-      svgHeight = Math.min(window.innerHeight * 0.6, 500)
+      svgWidth = Math.min(windowWidth - 20, 400)
+      svgHeight = Math.min(windowHeight * 0.6, 500)
     } else if (isTablet) {
       // Tablet: Canvas mediano
-      svgWidth = Math.min(window.innerWidth - 100, 600)
-      svgHeight = Math.min(window.innerHeight * 0.7, 700)
+      svgWidth = Math.min(windowWidth - 100, 600)
+      svgHeight = Math.min(windowHeight * 0.7, 700)
     } else if (isLaptop) {
       // Laptop: Canvas grande pero no excesivo
-      svgWidth = Math.min(window.innerWidth - 400, 800)
-      svgHeight = Math.min(window.innerHeight * 0.8, 800)
+      svgWidth = Math.min(windowWidth - 400, 800)
+      svgHeight = Math.min(windowHeight * 0.8, 800)
     } else {
       // Desktop: Canvas muy grande
-      svgWidth = Math.min(window.innerWidth - 500, 1000)
-      svgHeight = Math.min(window.innerHeight * 0.85, 900)
+      svgWidth = Math.min(windowWidth - 500, 1000)
+      svgHeight = Math.min(windowHeight * 0.85, 900)
     }
 
     const scale = Math.min(svgWidth / (params.diametro + 150), svgHeight / (params.alturaTotal + 250)) * params.zoom
@@ -809,7 +816,7 @@ Desarrollador: Armando Ovalle J
       isLaptop,
       isDesktop,
     }
-  }, [params])
+  }, [params, windowWidth, windowHeight, isMobile, isTablet, isLaptop, isDesktop])
 
   // Funciones simplificadas
   const saveStateForUndo = useCallback(() => {
@@ -2414,7 +2421,7 @@ Fecha: ${new Date().toLocaleDateString()}
                         {/* Etiqueta "Devanado" más separada de las flechas */}
                         <g>
                           <text
-                            x={calculations.centerX - calculations.bobinaWidth / 2 - 180}
+                            x={calculations.centerX - calculations.bobinaWidth / 2 - 120}
                             y={calculations.centerY + params.windingPositionY * calculations.scale - 40}
                             fontSize="16"
                             fontWeight="bold"
