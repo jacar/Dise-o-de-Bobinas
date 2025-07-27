@@ -1,6 +1,6 @@
 "use client"
 import type React from "react"
-import { useState, useRef, useCallback, useMemo } from "react"
+import { useState, useRef, useCallback, useMemo, useEffect } from "react"
 import { useWindowSize, useIsMobile, useIsTablet, useIsLaptop, useIsDesktop } from "@/hooks/use-window-size"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -178,9 +178,17 @@ export default function BobinaDesigner() {
   const [resizeHandle, setResizeHandle] = useState<string | null>(null)
   const [newsletterEmail, setNewsletterEmail] = useState("")
   const [newsletterStatus, setNewsletterStatus] = useState<"idle" | "sending" | "success" | "error">("idle")
+  const [mobileConfigOpen, setMobileConfigOpen] = useState(false)
   const svgRef = useRef<SVGSVGElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const textInputRef = useRef<HTMLInputElement>(null)
+
+  // Al inicio del componente BobinaDesigner:
+  const idCounter = useRef(0);
+  const getNextId = () => {
+    idCounter.current += 1;
+    return `element-${idCounter.current}`;
+  };
 
   // Función para ir al inicio
   const scrollToTop = () => {
@@ -771,15 +779,15 @@ Desarrollador: Armando Ovalle J
     [],
   )
 
-  // Cálculos optimizados - Responsive mejorado
+  // Cálculos optimizados - Responsive mejorado para móvil
   const calculations = useMemo(() => {
     let svgWidth: number
     let svgHeight: number
 
     if (isMobile) {
-      // Móvil: Canvas más pequeño pero usable
-      svgWidth = Math.min(windowWidth - 20, 400)
-      svgHeight = Math.min(windowHeight * 0.6, 500)
+      // Móvil: Canvas optimizado para pantalla completa y mejor usabilidad
+      svgWidth = Math.min(windowWidth - 16, windowWidth - 16) // Usar casi toda la pantalla
+      svgHeight = Math.min(windowHeight * 0.45, windowHeight * 0.45) // 45% de la altura para dejar espacio a controles
     } else if (isTablet) {
       // Tablet: Canvas mediano
       svgWidth = Math.min(windowWidth - 100, 600)
@@ -794,7 +802,9 @@ Desarrollador: Armando Ovalle J
       svgHeight = Math.min(windowHeight * 0.85, 900)
     }
 
-    const scale = Math.min(svgWidth / (params.diametro + 150), svgHeight / (params.alturaTotal + 250)) * params.zoom
+    // Escala mejorada para móvil - más zoom por defecto
+    const baseScale = isMobile ? 1.2 : 1
+    const scale = Math.min(svgWidth / (params.diametro + 150), svgHeight / (params.alturaTotal + 250)) * params.zoom * baseScale
     const bobinaWidth = params.diametro * scale
     const bobinaHeight = params.alturaTubo * scale
     const bobinadoHeight = params.alturaBobinado * scale
@@ -1177,7 +1187,7 @@ Desarrollador: Armando Ovalle J
         switch (currentTool) {
           case "text":
             newElement = {
-              id: Date.now().toString(),
+              id: getNextId(),
               type: "text",
               x: drawStart.x,
               y: drawStart.y,
@@ -1195,7 +1205,7 @@ Desarrollador: Armando Ovalle J
             const width = Math.abs(x - drawStart.x) || 100
             const height = Math.abs(y - drawStart.y) || 30
             newElement = {
-              id: Date.now().toString(),
+              id: getNextId(),
               type: "label",
               x: Math.min(drawStart.x, x),
               y: Math.min(drawStart.y, y),
@@ -1211,7 +1221,7 @@ Desarrollador: Armando Ovalle J
 
           case "cable":
             newElement = {
-              id: Date.now().toString(),
+              id: getNextId(),
               type: "cable",
               x: drawStart.x,
               y: drawStart.y,
@@ -1225,7 +1235,7 @@ Desarrollador: Armando Ovalle J
           case "hole":
             const radius = Math.sqrt(Math.pow(x - drawStart.x, 2) + Math.pow(y - drawStart.y, 2)) || 10
             newElement = {
-              id: Date.now().toString(),
+              id: getNextId(),
               type: "hole",
               x: drawStart.x - radius / 2,
               y: drawStart.y - radius / 2,
@@ -1256,7 +1266,7 @@ Desarrollador: Armando Ovalle J
       setResizingElement(null)
       setResizeHandle(null)
     },
-    [isDrawing, currentTool, drawStart, calculations.scale, settings.units],
+    [isDrawing, currentTool, drawStart, calculations.scale, settings.units, getNextId],
   )
 
   // Manejo de doble clic para editar texto
@@ -1506,6 +1516,180 @@ Fecha: ${new Date().toLocaleDateString()}
   // Tema claro por defecto
   const themeClasses = "min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 text-gray-900 overflow-x-hidden"
   const cardClasses = "border-gray-200 bg-white shadow-sm"
+
+  // 1. HANDLERS TOUCH SOLO PARA MÓVIL
+  const handleSvgTouchStart = useCallback((e: React.TouchEvent<SVGSVGElement>) => {
+    if (!isMobile) return;
+    const touch = e.touches[0];
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = touch.clientX - rect.left;
+    const y = touch.clientY - rect.top;
+    setDrawStart({ x, y });
+    setDrawEnd({ x, y });
+    if (currentTool === "pointer") {
+      const clickedElement = getElementAtPosition(x, y);
+      if (clickedElement === "winding") {
+        setSelectedElement("winding");
+        setIsMovingWinding(true);
+        setWindingDragStart({ y });
+        setIsDragging(true);
+      } else if (clickedElement && typeof clickedElement === "object") {
+        const handle = getResizeHandle(clickedElement, x, y);
+        if (handle) {
+          setResizingElement(clickedElement.id);
+          setResizeHandle(handle);
+          setIsDragging(true);
+        } else {
+          setSelectedElement(clickedElement.id);
+          if (clickedElement.type === "hole" || clickedElement.type === "measurement") {
+            setIsDragging(true);
+            setDragOffset({ x: x - clickedElement.x, y: y - clickedElement.y });
+          }
+        }
+      } else {
+        setSelectedElement(null);
+        setIsDragging(false);
+        setIsMovingWinding(false);
+      }
+    } else if (currentTool === "hand") {
+      setIsDragging(true);
+      setDragOffset({ x, y });
+    } else {
+      setIsDrawing(true);
+    }
+  }, [isMobile, currentTool, getElementAtPosition, getResizeHandle]);
+
+  const handleSvgTouchMove = useCallback((e: React.TouchEvent<SVGSVGElement>) => {
+    if (!isMobile) return;
+    const touch = e.touches[0];
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = touch.clientX - rect.left;
+    const y = touch.clientY - rect.top;
+    setDrawEnd({ x, y });
+    if (isDragging && currentTool === "pointer") {
+      if (isMovingWinding) {
+        const deltaY = y - windingDragStart.y;
+        const maxMovement = (params.alturaTubo - params.alturaBobinado) / 2;
+        const newWindingPositionY = Math.max(-maxMovement, Math.min(maxMovement, params.windingPositionY + deltaY / calculations.scale));
+        setParams((prev) => ({ ...prev, windingPositionY: newWindingPositionY }));
+        setWindingDragStart({ y });
+      } else if (resizingElement && resizeHandle === "resize") {
+        const element = elements.find((el) => el.id === resizingElement);
+        if (element && element.type === "hole") {
+          const centerX = element.x + (element.width || 20) / 2;
+          const centerY = element.y + (element.height || 20) / 2;
+          const newRadius = Math.max(5, Math.sqrt(Math.pow(x - centerX, 2) + Math.pow(y - centerY, 2)));
+          const newSize = newRadius * 2;
+          setElements((prev) => prev.map((el) => el.id === resizingElement ? { ...el, x: centerX - newRadius, y: centerY - newRadius, width: newSize, height: newSize } : el));
+        }
+      } else if (selectedElement && selectedElement !== "winding") {
+        const element = elements.find((el) => el.id === selectedElement);
+        if (element && (element.type === "hole" || element.type === "measurement")) {
+          const newX = Math.max(0, Math.min(calculations.svgWidth - (element.width || 20), x - dragOffset.x));
+          const newY = Math.max(0, Math.min(calculations.svgHeight - (element.height || 20), y - dragOffset.y));
+          if (element.type === "measurement") {
+            const deltaX = newX - element.x;
+            const deltaY = newY - element.y;
+            setElements((prev) => prev.map((el) => el.id === selectedElement ? { ...el, x: newX, y: newY, lineEndX: (el.lineEndX || el.x) + deltaX, lineEndY: (el.lineEndY || el.y) + deltaY } : el));
+          } else {
+            setElements((prev) => prev.map((el) => el.id === selectedElement ? { ...el, x: newX, y: newY } : el));
+          }
+        }
+      }
+    } else if (isDragging && currentTool === "hand") {
+      const deltaX = x - dragOffset.x;
+      const deltaY = y - dragOffset.y;
+      setParams((prev) => ({ ...prev, positionX: prev.positionX + deltaX, positionY: prev.positionY + deltaY }));
+      setDragOffset({ x, y });
+    }
+  }, [isMobile, isDragging, currentTool, isMovingWinding, windingDragStart, params.alturaTubo, params.alturaBobinado, params.windingPositionY, calculations.scale, dragOffset, resizingElement, resizeHandle, selectedElement, elements, calculations.svgWidth, calculations.svgHeight]);
+
+  const handleSvgTouchEnd = useCallback((e: React.TouchEvent<SVGSVGElement>) => {
+    if (!isMobile) return;
+    const touch = e.changedTouches[0];
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = touch.clientX - rect.left;
+    const y = touch.clientY - rect.top;
+    if (isDrawing && currentTool !== "pointer" && currentTool !== "hand") {
+      let newElement;
+      switch (currentTool) {
+        case "text":
+          newElement = {
+            id: getNextId(),
+            type: "text",
+            x: drawStart.x,
+            y: drawStart.y,
+            text: "Nuevo texto",
+            fontSize: 14,
+            color: "#000000",
+            editable: true,
+            isEditing: true,
+          };
+          setEditingElement(newElement.id);
+          setTempText("Nuevo texto");
+          break;
+        case "label":
+          const width = Math.abs(x - drawStart.x) || 100;
+          const height = Math.abs(y - drawStart.y) || 30;
+          newElement = {
+            id: getNextId(),
+            type: "label",
+            x: Math.min(drawStart.x, x),
+            y: Math.min(drawStart.y, y),
+            width,
+            height,
+            text: "Nueva etiqueta",
+            fontSize: 12,
+            color: "#000000",
+            backgroundColor: "#FFFFFF",
+            editable: true,
+          };
+          break;
+        case "cable":
+          newElement = {
+            id: getNextId(),
+            type: "cable",
+            x: drawStart.x,
+            y: drawStart.y,
+            lineEndX: x,
+            lineEndY: y,
+            color: "#8B4513",
+            text: "",
+          };
+          break;
+        case "hole":
+          const radius = Math.max(10, Math.sqrt(Math.pow(x - drawStart.x, 2) + Math.pow(y - drawStart.y, 2)));
+          newElement = {
+            id: getNextId(),
+            type: "hole",
+            x: drawStart.x - radius,
+            y: drawStart.y - radius,
+            width: radius * 2,
+            height: radius * 2,
+            color: "#333333",
+          };
+          break;
+        default:
+          newElement = null;
+      }
+      if (newElement) setElements((prev) => [...prev, newElement]);
+      setIsDrawing(false);
+    }
+    setIsDragging(false);
+    setIsMovingWinding(false);
+    setResizingElement(null);
+    setResizeHandle(null);
+  }, [isMobile, isDrawing, currentTool, drawStart, setElements, getNextId]);
+
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => { setIsMounted(true); }, []);
+  if (!isMounted) return null;
+
+  // Handler universal para botones (touch/mouse)
+  const handleButtonAction = (action: () => void) => (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
+    action();
+  };
 
   return (
     <div className={themeClasses}>
@@ -1813,10 +1997,10 @@ Fecha: ${new Date().toLocaleDateString()}
           </div>
         </div>
 
-        {/* Layout Reorganizado - Herramientas a la izquierda, Canvas en el centro, Configuración a la derecha */}
+        {/* Layout Reorganizado - Optimizado para móvil */}
         <div className="grid gap-2 md:gap-4 grid-cols-1 lg:grid-cols-5">
-          {/* Panel de Herramientas - Lado Izquierdo */}
-          <div className="lg:col-span-1">
+          {/* Panel de Herramientas - Lado Izquierdo (oculto en móvil) */}
+          <div className="hidden lg:block lg:col-span-1">
             <Card className={cardClasses}>
               <CardHeader className="pb-2 md:pb-3">
                 <CardTitle className="text-base md:text-lg flex items-center">
@@ -1830,60 +2014,72 @@ Fecha: ${new Date().toLocaleDateString()}
                   <Button
                     variant={currentTool === "pointer" ? "default" : "outline"}
                     size="sm"
-                    onClick={() => setCurrentTool("pointer")}
-                    className={`text-xs justify-start ${currentTool === "pointer" ? "bg-blue-600 hover:bg-blue-700" : ""}`}
+                    onClick={handleButtonAction(() => setCurrentTool("pointer"))}
+                    onTouchStart={handleButtonAction(() => setCurrentTool("pointer"))}
+                    className={`text-xs h-8 ${currentTool === "pointer" ? "bg-blue-600 hover:bg-blue-700" : ""}`}
+                    tabIndex={0}
                   >
-                    <MousePointer className="w-3 h-3 mr-2" />
+                    <MousePointer className="w-3 h-3 mr-1" />
                     Seleccionar
                   </Button>
 
                   <Button
                     variant={currentTool === "hand" ? "default" : "outline"}
                     size="sm"
-                    onClick={() => setCurrentTool("hand")}
-                    className={`text-xs justify-start ${currentTool === "hand" ? "bg-blue-600 hover:bg-blue-700" : ""}`}
+                    onClick={handleButtonAction(() => setCurrentTool("hand"))}
+                    onTouchStart={handleButtonAction(() => setCurrentTool("hand"))}
+                    className={`text-xs h-8 ${currentTool === "hand" ? "bg-blue-600 hover:bg-blue-700" : ""}`}
+                    tabIndex={0}
                   >
-                    <Hand className="w-3 h-3 mr-2" />
+                    <Hand className="w-3 h-3 mr-1" />
                     Mover Vista
                   </Button>
 
                   <Button
                     variant={currentTool === "text" ? "default" : "outline"}
                     size="sm"
-                    onClick={() => setCurrentTool("text")}
-                    className={`text-xs justify-start ${currentTool === "text" ? "bg-green-600 hover:bg-green-700" : ""}`}
+                    onClick={handleButtonAction(() => setCurrentTool("text"))}
+                    onTouchStart={handleButtonAction(() => setCurrentTool("text"))}
+                    className={`text-xs h-8 ${currentTool === "text" ? "bg-green-600 hover:bg-green-700" : ""}`}
+                    tabIndex={0}
                   >
-                    <Type className="w-3 h-3 mr-2" />
+                    <Type className="w-3 h-3 mr-1" />
                     Texto
                   </Button>
 
                   <Button
                     variant={currentTool === "label" ? "default" : "outline"}
                     size="sm"
-                    onClick={() => setCurrentTool("label")}
-                    className={`text-xs justify-start ${currentTool === "label" ? "bg-green-600 hover:bg-green-700" : ""}`}
+                    onClick={handleButtonAction(() => setCurrentTool("label"))}
+                    onTouchStart={handleButtonAction(() => setCurrentTool("label"))}
+                    className={`text-xs h-8 ${currentTool === "label" ? "bg-green-600 hover:bg-green-700" : ""}`}
+                    tabIndex={0}
                   >
-                    <Square className="w-3 h-3 mr-2" />
+                    <Square className="w-3 h-3 mr-1" />
                     Etiqueta
                   </Button>
 
                   <Button
                     variant={currentTool === "cable" ? "default" : "outline"}
                     size="sm"
-                    onClick={() => setCurrentTool("cable")}
-                    className={`text-xs justify-start ${currentTool === "cable" ? "bg-orange-600 hover:bg-orange-700" : ""}`}
+                    onClick={handleButtonAction(() => setCurrentTool("cable"))}
+                    onTouchStart={handleButtonAction(() => setCurrentTool("cable"))}
+                    className={`text-xs h-8 ${currentTool === "cable" ? "bg-orange-600 hover:bg-orange-700" : ""}`}
+                    tabIndex={0}
                   >
-                    <Cable className="w-3 h-3 mr-2" />
+                    <Cable className="w-3 h-3 mr-1" />
                     Cable
                   </Button>
 
                   <Button
                     variant={currentTool === "hole" ? "default" : "outline"}
                     size="sm"
-                    onClick={() => setCurrentTool("hole")}
-                    className={`text-xs justify-start ${currentTool === "hole" ? "bg-gray-600 hover:bg-gray-700" : ""}`}
+                    onClick={handleButtonAction(() => setCurrentTool("hole"))}
+                    onTouchStart={handleButtonAction(() => setCurrentTool("hole"))}
+                    className={`text-xs h-8 ${currentTool === "hole" ? "bg-gray-600 hover:bg-gray-700" : ""}`}
+                    tabIndex={0}
                   >
-                    <Circle className="w-3 h-3 mr-2" />
+                    <Circle className="w-3 h-3 mr-1" />
                     Agujero
                   </Button>
                 </div>
@@ -2015,22 +2211,24 @@ Fecha: ${new Date().toLocaleDateString()}
             </Card>
           </div>
 
-          {/* Canvas de la Bobina - Centro */}
-          <div className="lg:col-span-3">
+          {/* Canvas de la Bobina - Centro (optimizado para móvil) */}
+          <div className="col-span-1 lg:col-span-3">
             <div className="bg-white rounded-lg shadow-sm">
               {/* Contenedor SVG - Responsive y centrado */}
-              <div className="flex justify-center items-center w-full p-2">
+              <div className="flex justify-center items-center w-full p-1 md:p-2">
                 <div className="relative">
                   <svg
                     width={calculations.svgWidth}
                     height={calculations.svgHeight}
                     ref={svgRef}
                     style={{ backgroundColor: "#f9f9f9" }}
-                    onMouseDown={handleSvgMouseDown}
-                    onMouseMove={handleSvgMouseMove}
-                    onMouseUp={handleSvgMouseUp}
-                    onDoubleClick={handleSvgDoubleClick}
-                    className="border border-gray-200 rounded-lg"
+                    onMouseDown={isMobile ? undefined : handleSvgMouseDown}
+                    onMouseMove={isMobile ? undefined : handleSvgMouseMove}
+                    onMouseUp={isMobile ? undefined : handleSvgMouseUp}
+                    onTouchStart={isMobile ? handleSvgTouchStart : undefined}
+                    onTouchMove={isMobile ? handleSvgTouchMove : undefined}
+                    onTouchEnd={isMobile ? handleSvgTouchEnd : undefined}
+                    className="border border-gray-200 rounded-lg touch-none"
                   >
                     <defs>
                       <linearGradient id="materialGradient" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -2110,8 +2308,28 @@ Fecha: ${new Date().toLocaleDateString()}
                         height={calculations.bobinadoHeight}
                         fill="url(#copperGradient)"
                         opacity="0.3"
-                        style={{ cursor: "grab" }}
+                        style={{ cursor: isMobile ? "grab" : "grab" }}
                       />
+                      
+                      {/* Indicador visual para móvil - mostrar que se puede arrastrar */}
+                      {isMobile && (
+                        <rect
+                          x={calculations.centerX - calculations.bobinaWidth / 2}
+                          y={
+                            calculations.centerY -
+                            calculations.bobinadoHeight / 2 +
+                            params.windingPositionY * calculations.scale
+                          }
+                          width={calculations.bobinaWidth}
+                          height={calculations.bobinadoHeight}
+                          fill="none"
+                          stroke="#FFD700"
+                          strokeWidth="2"
+                          strokeDasharray="5,5"
+                          opacity="0.6"
+                          style={{ pointerEvents: "none" }}
+                        />
+                      )}
 
                       {/* Líneas de alambre realistas */}
                       {Array.from({ length: params.capas }, (_, layerIndex) => {
@@ -2177,6 +2395,41 @@ Fecha: ${new Date().toLocaleDateString()}
                     {elements.map((element) => {
                       switch (element.type) {
                         case "label":
+                          if (editingElement === element.id) {
+                            return (
+                              <foreignObject
+                                key={element.id}
+                                x={element.x}
+                                y={element.y}
+                                width={element.width || 100}
+                                height={element.height || 30}
+                              >
+                                <input
+                                  ref={textInputRef}
+                                  value={tempText}
+                                  onChange={e => setTempText(e.target.value)}
+                                  onBlur={finishTextEditing}
+                                  onKeyDown={e => {
+                                    if (e.key === "Enter") finishTextEditing()
+                                    if (e.key === "Escape") { setEditingElement(null); setTempText("") }
+                                  }}
+                                  style={{
+                                    fontSize: (element.fontSize || 12),
+                                    color: element.color || "#000000",
+                                    width: "100%",
+                                    height: "100%",
+                                    border: "1px solid #4F46E5",
+                                    borderRadius: 4,
+                                    padding: 2,
+                                    background: "#fff",
+                                    outline: "none",
+                                    textAlign: "center",
+                                  }}
+                                  autoFocus
+                                />
+                              </foreignObject>
+                            )
+                          }
                           return (
                             <foreignObject
                               key={element.id}
@@ -2210,6 +2463,39 @@ Fecha: ${new Date().toLocaleDateString()}
                           )
 
                         case "text":
+                          if (editingElement === element.id) {
+                            return (
+                              <foreignObject
+                                key={element.id}
+                                x={element.x}
+                                y={element.y - (element.fontSize || 14)}
+                                width={150}
+                                height={30}
+                              >
+                                <input
+                                  ref={textInputRef}
+                                  value={tempText}
+                                  onChange={e => setTempText(e.target.value)}
+                                  onBlur={finishTextEditing}
+                                  onKeyDown={e => {
+                                    if (e.key === "Enter") finishTextEditing()
+                                    if (e.key === "Escape") { setEditingElement(null); setTempText("") }
+                                  }}
+                                  style={{
+                                    fontSize: (element.fontSize || 14),
+                                    color: element.color || "#000000",
+                                    width: "100%",
+                                    border: "1px solid #4F46E5",
+                                    borderRadius: 4,
+                                    padding: 2,
+                                    background: "#fff",
+                                    outline: "none",
+                                  }}
+                                  autoFocus
+                                />
+                              </foreignObject>
+                            )
+                          }
                           return (
                             <text
                               key={element.id}
@@ -2622,12 +2908,304 @@ Fecha: ${new Date().toLocaleDateString()}
                     </ul>
                   </div>
                 </div>
+                
+                {/* Instrucciones específicas para móvil */}
+                {isMobile && (
+                  <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <h4 className="font-medium mb-2 text-yellow-800">📱 Instrucciones para Móvil:</h4>
+                    <ul className="space-y-1 text-xs leading-relaxed text-yellow-700">
+                      <li>• <strong>Toque el bobinado dorado</strong> y arrastra para moverlo</li>
+                      <li>• <strong>Panel de herramientas</strong> en la parte inferior</li>
+                      <li>• <strong>Configuración</strong> con el botón ⚙️</li>
+                      <li>• <strong>Zoom</strong> con los botones + y -</li>
+                      <li>• <strong>Doble toque</strong> para editar texto</li>
+                    </ul>
+                  </div>
+                )}
               </div>
             </div>
           </div>
 
+          {/* Panel de Herramientas Móvil - Flotante (solo visible en móvil) */}
+          {isMobile && (
+            <div className="fixed bottom-4 left-4 right-4 z-50">
+              <Card className="bg-white/95 backdrop-blur-sm border-2 border-blue-200 shadow-xl">
+                <CardContent className="p-3">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-semibold text-gray-800 flex items-center">
+                      <Pencil className="w-4 h-4 mr-2 text-blue-500" />
+                      Herramientas
+                    </h3>
+                    <Badge variant="outline" className="text-xs">
+                      {currentTool}
+                    </Badge>
+                  </div>
+                  
+                  {/* Herramientas en grid horizontal para móvil */}
+                  <div className="grid grid-cols-3 gap-2 mb-3">
+                    <Button
+                      variant={currentTool === "pointer" ? "default" : "outline"}
+                      size="sm"
+                      onClick={handleButtonAction(() => setCurrentTool("pointer"))}
+                      onTouchStart={handleButtonAction(() => setCurrentTool("pointer"))}
+                      className={`text-xs h-8 ${currentTool === "pointer" ? "bg-blue-600 hover:bg-blue-700" : ""}`}
+                      tabIndex={0}
+                    >
+                      <MousePointer className="w-3 h-3 mr-1" />
+                      Seleccionar
+                    </Button>
+
+                    <Button
+                      variant={currentTool === "hand" ? "default" : "outline"}
+                      size="sm"
+                      onClick={handleButtonAction(() => setCurrentTool("hand"))}
+                      onTouchStart={handleButtonAction(() => setCurrentTool("hand"))}
+                      className={`text-xs h-8 ${currentTool === "hand" ? "bg-blue-600 hover:bg-blue-700" : ""}`}
+                      tabIndex={0}
+                    >
+                      <Hand className="w-3 h-3 mr-1" />
+                      Mover
+                    </Button>
+
+                    <Button
+                      variant={currentTool === "text" ? "default" : "outline"}
+                      size="sm"
+                      onClick={handleButtonAction(() => setCurrentTool("text"))}
+                      onTouchStart={handleButtonAction(() => setCurrentTool("text"))}
+                      className={`text-xs h-8 ${currentTool === "text" ? "bg-green-600 hover:bg-green-700" : ""}`}
+                      tabIndex={0}
+                    >
+                      <Type className="w-3 h-3 mr-1" />
+                      Texto
+                    </Button>
+
+                    <Button
+                      variant={currentTool === "label" ? "default" : "outline"}
+                      size="sm"
+                      onClick={handleButtonAction(() => setCurrentTool("label"))}
+                      onTouchStart={handleButtonAction(() => setCurrentTool("label"))}
+                      className={`text-xs h-8 ${currentTool === "label" ? "bg-green-600 hover:bg-green-700" : ""}`}
+                      tabIndex={0}
+                    >
+                      <Square className="w-3 h-3 mr-1" />
+                      Etiqueta
+                    </Button>
+
+                    <Button
+                      variant={currentTool === "cable" ? "default" : "outline"}
+                      size="sm"
+                      onClick={handleButtonAction(() => setCurrentTool("cable"))}
+                      onTouchStart={handleButtonAction(() => setCurrentTool("cable"))}
+                      className={`text-xs h-8 ${currentTool === "cable" ? "bg-orange-600 hover:bg-orange-700" : ""}`}
+                      tabIndex={0}
+                    >
+                      <Cable className="w-3 h-3 mr-1" />
+                      Cable
+                    </Button>
+
+                    <Button
+                      variant={currentTool === "hole" ? "default" : "outline"}
+                      size="sm"
+                      onClick={handleButtonAction(() => setCurrentTool("hole"))}
+                      onTouchStart={handleButtonAction(() => setCurrentTool("hole"))}
+                      className={`text-xs h-8 ${currentTool === "hole" ? "bg-gray-600 hover:bg-gray-700" : ""}`}
+                      tabIndex={0}
+                    >
+                      <Circle className="w-3 h-3 mr-1" />
+                      Agujero
+                    </Button>
+                  </div>
+
+                  {/* Controles de zoom y vista para móvil */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-1">
+                      <Button variant="outline" size="sm" onClick={() => zoomBobin(false)} className="h-8 w-8 p-0">
+                        <ZoomOut className="h-3 w-3" />
+                      </Button>
+                      <Badge variant="outline" className="text-xs px-2">
+                        {Math.round(params.zoom * 100)}%
+                      </Badge>
+                      <Button variant="outline" size="sm" onClick={() => zoomBobin(true)} className="h-8 w-8 p-0">
+                        <ZoomIn className="h-3 w-3" />
+                      </Button>
+                    </div>
+                    
+                    <div className="flex items-center space-x-1">
+                      <Button variant="outline" size="sm" onClick={resetView} className="h-8 w-8 p-0">
+                        <RotateCcw className="h-3 w-3" />
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={handleUndo} disabled={undoStack.length === 0} className="h-8 w-8 p-0">
+                        <Undo2 className="h-3 w-3" />
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => setMobileConfigOpen(!mobileConfigOpen)} 
+                        className="h-8 w-8 p-0 bg-blue-50 border-blue-300"
+                      >
+                        <Settings className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Panel de Configuración Móvil - Flotante (solo visible en móvil) */}
+          {isMobile && mobileConfigOpen && (
+            <div className="fixed top-4 left-4 right-4 z-50 max-h-[80vh] overflow-y-auto">
+              <Card className="bg-white/95 backdrop-blur-sm border-2 border-green-200 shadow-xl">
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base flex items-center">
+                      <Settings className="w-4 h-4 mr-2 text-green-500" />
+                      Configuración de Bobina
+                    </CardTitle>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => setMobileConfigOpen(false)}
+                      className="h-6 w-6 p-0"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Controles de dimensiones para móvil */}
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <Label className="text-sm">Diámetro: {params.diametro}mm</Label>
+                      </div>
+                      <Slider
+                        value={[params.diametro]}
+                        onValueChange={(value) => updateParam("diametro", value[0])}
+                        max={200}
+                        min={20}
+                        step={1}
+                        className="w-full"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <Label className="text-sm">Altura Total: {params.alturaTotal}mm</Label>
+                      </div>
+                      <Slider
+                        value={[params.alturaTotal]}
+                        onValueChange={(value) => updateParam("alturaTotal", value[0])}
+                        max={200}
+                        min={20}
+                        step={1}
+                        className="w-full"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <Label className="text-sm">Altura Bobinado: {params.alturaBobinado}mm</Label>
+                      </div>
+                      <Slider
+                        value={[params.alturaBobinado]}
+                        onValueChange={(value) => updateParam("alturaBobinado", value[0])}
+                        max={params.alturaTotal}
+                        min={10}
+                        step={1}
+                        className="w-full"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <Label className="text-sm">Espesor Tubo: {params.espesorTubo}mm</Label>
+                      </div>
+                      <Slider
+                        value={[params.espesorTubo]}
+                        onValueChange={(value) => updateParam("espesorTubo", value[0])}
+                        max={10}
+                        min={1}
+                        step={0.5}
+                        className="w-full"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <Label className="text-sm">Capas: {params.capas}</Label>
+                      </div>
+                      <Slider
+                        value={[params.capas]}
+                        onValueChange={(value) => updateParam("capas", value[0])}
+                        max={8}
+                        min={1}
+                        step={1}
+                        className="w-full"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-sm">Material</Label>
+                      <Select value={params.material} onValueChange={(value) => updateParam("material", value)}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Object.entries(materials).map(([key, material]) => (
+                            <SelectItem key={key} value={key}>
+                              {material.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-sm">Impedancia</Label>
+                      <Select value={params.impedancia.toString()} onValueChange={(value) => updateParam("impedancia", Number(value))}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {impedanciaOptions.map((imp) => (
+                            <SelectItem key={imp} value={imp.toString()}>
+                              {imp}Ω
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {/* Botones de acción */}
+                  <div className="flex space-x-2 pt-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => exportDesign("png")}
+                      className="flex-1"
+                    >
+                      <FileImage className="w-4 h-4 mr-1" />
+                      PNG
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => exportDesign("pdf")}
+                      className="flex-1"
+                    >
+                      <FileText className="w-4 h-4 mr-1" />
+                      PDF
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
           {/* Panel de Configuración y Plantillas - Lado Derecho */}
-          <div className="lg:col-span-1">
+          <div className="hidden lg:block lg:col-span-1">
             <Tabs defaultValue="design" className="w-full" onValueChange={setActiveTab}>
               <TabsList className="grid w-full grid-cols-2 bg-gray-100">
                 <TabsTrigger value="design" className="data-[state=active]:bg-white text-xs md:text-sm">

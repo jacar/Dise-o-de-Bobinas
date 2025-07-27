@@ -1,33 +1,12 @@
 {
   "name": "VoiceCoil Designer",
   "short_name": "VoiceCoil",
-  "description": "Constructor Profesional de Bobinas de Voz para altavoces",
+  "description": "Calculadora y constructor profesional de bobinas de voz para altavoces.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#ffffff",
-  "orientation": "portrait-primary",
-  "scope": "/",
-  "lang": "es",
-  "categories": ["engineering", "productivity", "utilities"],
+  "theme_color": "#0f172a",
   "icons": [
-    {
-      "src": "/android-icon-192x192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/android-icon-512x512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/apple-icon-180x180.png",
-      "sizes": "180x180",
-      "type": "image/png"
-    },
     {
       "src": "/favicon-32x32.png",
       "sizes": "32x32",
@@ -37,50 +16,11 @@
       "src": "/favicon-16x16.png",
       "sizes": "16x16",
       "type": "image/png"
-    }
-  ],
-  "screenshots": [
-    {
-      "src": "/screenshot-desktop.png",
-      "sizes": "1280x720",
-      "type": "image/png",
-      "form_factor": "wide",
-      "label": "VoiceCoil Designer en escritorio"
     },
     {
-      "src": "/screenshot-mobile.png",
-      "sizes": "390x844",
-      "type": "image/png",
-      "form_factor": "narrow",
-      "label": "VoiceCoil Designer en móvil"
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
     }
-  ],
-  "shortcuts": [
-    {
-      "name": "Nuevo Diseño",
-      "short_name": "Nuevo",
-      "description": "Crear un nuevo diseño de bobina",
-      "url": "/?action=new",
-      "icons": [
-        {
-          "src": "/icon-shortcut-new.png",
-          "sizes": "96x96"
-        }
-      ]
-    },
-    {
-      "name": "Plantillas",
-      "short_name": "Plantillas",
-      "description": "Ver plantillas de bobinas",
-      "url": "/?action=templates",
-      "icons": [
-        {
-          "src": "/icon-shortcut-templates.png",
-          "sizes": "96x96"
-        }
-      ]
-    }
-  ],
-  "related_applications": [],
-  "prefer_related_applications": false
+  ]
 } 
