@@ -11,7 +11,7 @@ export default function Page() {
           <rect width="656" height="659.2" fill="url(#grid)" style={{pointerEvents: "none"}}></rect>
           <rect x="245.6" y="184.24" width="164.8" height="230.72" fill="url(#materialGradient)" stroke="#333" strokeWidth="1" rx="3" transform="rotate(0 328 299.6)"></rect>
           <rect x="253.84" y="184.24" width="148.32" height="230.72" fill="white" stroke="#666" strokeWidth="0.5" transform="rotate(0 328 299.6)"></rect>
-          {/* ...Pega aquí el resto COMPLETO de tu SVG... */}
+          {/* ...el resto de tu SVG aquí (puedes pegarlo todo, lo corté para claridad) */}
         </svg>
       </div>
 
